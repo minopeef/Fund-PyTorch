@@ -1,12 +1,14 @@
+from .SatMAE.models_vit_group_channels_seg import vit_large_patch16 as vit_large_patch16_seg
+from .SatMAE.models_vit_group_channels import vit_large_patch16 as vit_large_patch16_cls
+
 import torch.nn as nn
 import torch
 # use mmsegmentation for upernet+mae
 from mmseg.models.necks import Feature2Pyramid
 from mmseg.models.decode_heads import UPerHead, FCNHead
 from loguru import logger
+import pdb
 from util.misc import resize
-import math
-from einops import rearrange
 
 # upernet + mae from mmsegmentation
 class UperNet(torch.nn.Module):
@@ -16,14 +18,9 @@ class UperNet(torch.nn.Module):
         self.neck = neck
         self.decode_head = decode_head
         self.aux_head = aux_head
-        self.idx_blocks_to_return = [4, 6, 10, 11]
     
-    def forward(self, x_dict):  
-        outputs = self.backbone.get_intermediate_layers(x_dict, self.idx_blocks_to_return)
-        x = x_dict['imgs']
-        N,HW,C = outputs[0].shape
-        H = W = int(math.sqrt(HW))
-        feat = [rearrange(out, "n (h w) c -> n c h w", h=H, w=W) for out in outputs]
+    def forward(self, x):
+        feat = self.backbone.forward_features(x)
         feat = self.neck(feat)
         out = self.decode_head(feat)
         out = resize(out, size=x.shape[2:], mode='bilinear', align_corners=False)
@@ -31,14 +28,24 @@ class UperNet(torch.nn.Module):
         out_a = resize(out_a, size=x.shape[2:], mode='bilinear', align_corners=False)
         return out, out_a
 
-
-class Dinov2(nn.Module):
+class SatMAE(nn.Module):
     def __init__(self, config):
-        super(Dinov2, self).__init__()
+        super(SatMAE, self).__init__()
 
-        self.config = config
-        self.encoder = torch.hub.load('facebookresearch/dinov2', config.dino_size)
-
+        #get the params for the model
+        kwargs = {}
+        kwargs['img_size'] = config.image_resolution
+        kwargs['patch_size'] = config.patch_size
+        kwargs['in_chans'] = config.num_channels
+        kwargs['channel_groups'] = config.channel_groups
+        
+        self.encoder = vit_large_patch16_seg(**kwargs)
+        #Load pretrained weights
+        checkpoint = torch.load(config.pretrained_path, map_location='cpu')
+        checkpoint_model = checkpoint['model']
+        msg = self.encoder.load_state_dict(checkpoint_model, strict=False)
+        logger.debug(msg)
+        
         self.out_features = config.out_features
         self.model = self.encoder
         self.task = config.task
@@ -47,7 +54,8 @@ class Dinov2(nn.Module):
             self.freeze(self.encoder)
 
         if config.task == 'classification':
-            raise NotImplementedError("on going")
+            #add linear layer
+            pass
 
         elif config.task == 'segmentation':
             # create model: upernet + mae
@@ -105,10 +113,7 @@ class Dinov2(nn.Module):
             case 'classification':
                 raise NotImplementedError("on going")
             case 'segmentation':
-                #logger.debug(f'dinov2: {self.config.dino_size}')
-                x_dict = {}
-                x_dict['imgs'] = samples
-                out, out_aux =  self.seg_model(x_dict)
+                out, out_aux =  self.seg_model(samples)
                 return out, out_aux
 
 
