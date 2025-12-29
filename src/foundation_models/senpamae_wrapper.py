@@ -123,7 +123,9 @@ class SenPaMAEClassification(LightningTask):
         Apply LoRA to the last few layers of the encoder using PEFT.
         """
 
-        print("LORA: Applying PEFT: ", lora_cfg)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"LORA: Applying PEFT: {lora_cfg}")
 
         # Configure LoRA
         peft_config = LoraConfig(
