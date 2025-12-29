@@ -1,176 +1,371 @@
 # Evaluation of Foundation Models for Earth Observation
 
-This repository provides tools for evaluating various foundation models on Earth Observation tasks. For detailed instructions on **pretraining and deploying [DOFA](https://arxiv.org/abs/2403.15356)**, please refer to the [main DOFA repository](https://github.com/zhu-xlab/DOFA).
+This repository provides a comprehensive framework for evaluating various foundation models on Earth Observation tasks. The project is built with PyTorch Lightning and supports multiple state-of-the-art geospatial foundation models for both classification and segmentation tasks.
 
----
+## Overview
 
-## Setup
+This framework enables researchers and practitioners to:
+- Evaluate multiple foundation models on standardized Earth Observation datasets
+- Compare model performance across different tasks (classification, segmentation)
+- Fine-tune models using various strategies (full fine-tuning, linear probing, LoRA)
+- Conduct hyperparameter optimization using Ray Tune
+- Manage experiments with Hydra configuration system
 
-Navigate into the root directory of this repository and do:
+## Project Structure
+
 ```
+Fund-PyTorch/
+├── src/
+│   ├── main.py                    # Main training script
+│   ├── factory.py                 # Model and dataset factory functions
+│   ├── configs/                   # Hydra configuration files
+│   │   ├── config.yaml           # Main configuration
+│   │   ├── model/                # Model-specific configurations
+│   │   └── dataset/              # Dataset-specific configurations
+│   ├── foundation_models/        # Foundation model implementations
+│   │   ├── base.py               # Base model classes
+│   │   ├── lightning_task.py     # PyTorch Lightning task base class
+│   │   ├── dofa_wrapper.py       # DOFA model wrapper
+│   │   ├── dinov2_wrapper.py     # DinoV2 model wrapper
+│   │   ├── satmae_wrapper.py      # SatMAE model wrapper
+│   │   ├── gfm_wrapper.py        # GFM model wrapper
+│   │   ├── croma_wrapper.py      # CROMA model wrapper
+│   │   ├── scalemae_wrapper.py   # ScaleMAE model wrapper
+│   │   ├── senpamae_wrapper.py   # SenPaMAE model wrapper
+│   │   ├── softcon_wrapper.py    # SoftCON model wrapper
+│   │   └── anysat_wrapper.py     # AnySat model wrapper
+│   ├── datasets/                  # Dataset wrappers
+│   │   ├── data_module.py        # PyTorch Lightning data module
+│   │   ├── geobench_wrapper.py   # GeoBench dataset wrapper
+│   │   ├── benv2_wrapper.py      # BigEarthNetV2 wrapper
+│   │   ├── resisc_wrapper.py     # RESISC45 wrapper
+│   │   └── ...                   # Other dataset wrappers
+│   ├── util/                      # Utility functions
+│   ├── hparam_ray.py             # Ray Tune hyperparameter optimization
+│   └── hparam_ray_hydra.py       # Ray Tune with Hydra integration
+├── scripts/                       # Experiment scripts
+│   ├── generate_bash_scripts.py  # Script generator for experiments
+│   └── generate_bash_scripts_ray_tune.py  # Ray Tune script generator
+├── tests/                         # Unit tests
+├── requirements/                  # Dependency files
+│   ├── required.txt              # Core dependencies
+│   ├── style.txt                 # Code style dependencies
+│   └── tests.txt                 # Test dependencies
+├── pyproject.toml                # Project metadata and dependencies
+└── README.md                     # This file
+```
+
+## Features
+
+### Supported Foundation Models
+
+- **CROMA**: Cross-modal foundation model for remote sensing
+- **DOFA**: Dynamic Orthogonal Frequency Attention model
+- **GFM**: Geospatial Foundation Model
+- **DinoV2**: Vision Transformer from Meta AI
+- **SatMAE**: Satellite Masked Autoencoder
+- **ScaleMAE**: Scale-aware Masked Autoencoder
+- **SenPaMAE**: Sentinel-2 Patch Masked Autoencoder
+- **SoftCON**: Soft Contrastive Learning model
+- **AnySat**: Any-scale satellite foundation model
+
+### Supported Datasets
+
+- **GeoBench**: Comprehensive geospatial benchmark suite including:
+  - EuroSAT
+  - ForestNet
+  - So2Sat
+  - Cashew
+  - Chesapeake
+  - Brick Kiln
+  - NZ Cattle
+  - NeonTree
+  - PV4GER
+  - Sacrop
+- **BigEarthNetV2**: Large-scale multi-label classification dataset
+- **RESISC45**: Remote sensing image scene classification dataset
+- **Digital Typhoon**: Tropical cyclone dataset
+- **Tropical Cyclone**: Additional cyclone dataset
+
+### Training Strategies
+
+- **Full Fine-tuning**: Update all model parameters
+- **Linear Probing**: Freeze backbone, train only classification head
+- **LoRA (Low-Rank Adaptation)**: Efficient fine-tuning with parameter-efficient methods
+- **Selective Parameter Training**: Train only specific layers
+
+## Installation
+
+### Prerequisites
+
+- Python 3.10
+- CUDA-capable GPU (recommended)
+- Conda or virtual environment manager
+
+### Setup Instructions
+
+1. Clone the repository and navigate to the root directory.
+
+2. Create a conda environment:
+```bash
 conda create -n dofa-pytorch python=3.10 --yes
 conda activate dofa-pytorch
+```
+
+3. Install OpenMIM and PyTorch:
+```bash
 pip install -U openmim
 pip install torch==2.1.2
 mim install mmcv==2.1.0 mmsegmentation==1.2.2
+```
+
+4. Install the package:
+```bash
 pip install -e .
 ```
 
-You currently do not need to install the ViT Adapter part below, as it is not used in the current version of the repository. It is optional, and relies on CUDA toolkit < 12
+### Optional: ViT Adapter Installation
 
-### To use [ViT Adapter](https://arxiv.org/abs/2205.08534)
+The ViT Adapter module is optional and requires CUDA toolkit version less than 12. To install:
+
 ```bash
 cd src/foundation_models/modules/ops/
 sh make.sh
 ```
 
+## Configuration
 
-### Model Weights
-Pretrained model weights are available on [Hugging Face](https://huggingface.co/XShadow/GeoFMs).
+### Environment Variables
 
-#### Model Spefic Instructons
-- SenPa-MAE: The cloud storage link for the weights is [here](https://drive.google.com/file/d/16IoG47yzdyUnPqUgaV8ofeja5RgQjlAz/view?usp=drive_link). Download the weights and place them in the `MODEL_WEIGHTS_DIR` directory.
-You can use `gdown <UID>` to download the weights from the google drive link (the UID is the stuff between '/d/' and '/view?usp=drive_link')
+Create a `.env` file in the root directory with the following variables:
 
-### Set Up Your Environment Variables
-
-You can set this environment variable in a .env in the root directory. The variables here are automatically exported and used by different scripts, so make sure to set the following variables:
-
-```shell
-MODEL_WEIGHTS_DIR=<path/to/your/where/you/want/to/store/weights>
-TORCH_HOME=<path/to/your/where/you/want/to/store/torch/hub/weights>
-DATASETS_DIR=<path/to/your/where/you/want/to/store/all/other/datasets>
-GEO_BENCH_DIR=<path/to/your/where/you/want/to/store/GeoBench>
-ODIR=<path/to/your/where/you/want/to/store/logs>
-REPO_PATH=<path/to/this/repo>
+```bash
+MODEL_WEIGHTS_DIR=<path/to/model/weights/directory>
+TORCH_HOME=<path/to/torch/hub/weights>
+DATASETS_DIR=<path/to/datasets/directory>
+GEO_BENCH_DIR=<path/to/geobench/directory>
+ODIR=<path/to/output/logs>
+REPO_PATH=<path/to/this/repository>
 ```
 
-When using any of the FMs, the init method will check whether it can find the pre-trained checkpoint of the respective FM in the above `MODEL_WEIGHTS_DIR` and download it there if not found. If you do not change the env
-variable, the default will be `./fm_weights`.
+If not set, `MODEL_WEIGHTS_DIR` defaults to `./fm_weights`. The framework will automatically download pre-trained model weights to this directory if they are not found.
 
-Some models depend on [torch hub](https://pytorch.org/docs/stable/hub.html#where-are-my-downloaded-models-saved), which by default will load models to `~.cache/torch/hub`. If you would like to change the directory if this to
-for example have a single place where all weights across the models are stored, you can also change
+### Model Weights
 
+Pre-trained model weights are automatically downloaded from Hugging Face when first used. For SenPa-MAE, download weights manually and place them in the `MODEL_WEIGHTS_DIR` directory. Use `gdown` with the file ID from the Google Drive link.
 
----
+## Usage
 
-## Available Models
+### Basic Training
 
-This repository includes the following models for evaluation:
-
-- CROMA
-- DOFA
-- GFM
-- RemoteCLIP
-- SatMAE
-- ScaleMAE
-- Skyscript
-- SoftCON
-- AnySat
-
----
-
-## Supported Datasets
-
-The following datasets are currently supported:
-
-- GeoBench
-- BigEarthNetV2
-- Resisc45
-
----
-
-## Adding New Models and Datasets
-
-To add a new model or dataset for evaluation, follow these steps:
-
-1. **Add a Model Wrapper:**
-   - Create a new model wrapper in the [`foundation_models`](foundation_models) folder.
-   - Add the new model to `__init__.py` for integration.
-   - Register the model in [`factory.py`](factory.py) by adding its name to make it accessible via the `model_type` parameter.
-
-2. **Add a Dataset Wrapper:**
-   - Create a new dataset wrapper in the [`datasets`](datasets) folder.
-   - Register the dataset in [`factory.py`](factory.py) to ensure access.
-   
-3. **Configuration Setup:**
-   This project is using [hydra](https://hydra.cc/docs/1.3/intro/) for experiment configuation:
-
-   In the configs directory there is a subdirectory for models and dataset, where you need to add
-   a config file for the new dataset and model
-
----
-
-### Note on hydra
-
-Hydra is a powerful and flexible way for experiment configuration, however, it can be a bit confusing at the beginning, as there is now an interplay between different hierarchy levels plus environment variables. 
-
-We differentiate between three kinds of configs:
-
-- Model Config: this includes all specific variables required for a particular model
-- Dataset Config: this includes all specific variables required for a particular dataset
-- Other Config: these variables will be applied on the command line and are additional args for experiment configuration such as the output directory, number of gpus etc.
-
-Any model config parameter can always be overwritten by `model.{param_name}={something}`, similar to the dataset `dataset.{param_name}={something}`. In the `main.py` script that has the hydra decorator they will all be merged and be available under the `cfg` dictionary. For more examples, see the [hydra overwrite examples](https://hydra.cc/docs/advanced/override_grammar/basic/#basic-examples).
-
-### Note on LORA
-
-Need to explain how to run LORA
-
-### Running Unit Tests
-
-We have implemented a series of unit tests that aim to test that there are no runtime bugs. They will also be run on new PRs to check that changes are not breaking other parts. To run the tests you need to `pip install pytest`, and then from the root directory simply run `pytest tests/` which will run all tests file inside the `tests/` directory, or run `pytest tests/test_{model_name}` for any specific unit test file in there.
-
-
-## Running Experiments
-
-To run evaluation on any of the models, you can use the following example:
-
+Run an experiment using the main script:
 
 ```bash
 export $(cat .env)
-echo "Output Directory": $ODIR
-echo "Model Size": $MODEL_SIZE
-
 python src/main.py \
-output_dir=${ODIR}/exps/dinov2_cls_linear_probe_benv2_rgb \
-model=dinov2_cls_linear_probe \
-dataset=benv2_rgb \
-lr=0.002 \
-task=classification \
-num_gpus=0 \
-num_workers=8 \
-epochs=30 \
-warmup_epochs=5 \
-seed=13 \
+    output_dir=${ODIR}/exps/dinov2_cls_linear_probe_benv2_rgb \
+    model=dinov2_cls_linear_probe \
+    dataset=benv2_rgb \
+    lr=0.002 \
+    task=classification \
+    num_gpus=1 \
+    num_workers=8 \
+    epochs=30 \
+    warmup_epochs=5 \
+    seed=13
 ```
 
+### Configuration System
 
-The model and dataset arguments are the names of the config.yaml files specified under the `src/configs` directory. Additional arguments can be passed to the command: basically, anything in `src/main.py` that has `cfg.{something}` passing the argument with the command line command will overwrite the configs with the dedicated values.
+This project uses Hydra for experiment configuration. There are three types of configurations:
 
-There is a convenience script for generating such shell scripts for running experiments. 
+1. **Model Config**: Model-specific parameters (in `src/configs/model/`)
+2. **Dataset Config**: Dataset-specific parameters (in `src/configs/dataset/`)
+3. **Experiment Config**: Training parameters (can be overridden via command line)
+
+You can override any configuration parameter using Hydra's override syntax:
+- `model.{param_name}=value` for model parameters
+- `dataset.{param_name}=value` for dataset parameters
+- `{param_name}=value` for experiment parameters
+
+### Generating Experiment Scripts
+
+Use the convenience script to generate bash scripts for multiple experiments:
 
 ```bash
-scripts/generate_bash_scripts.py
+python scripts/generate_bash_scripts.py
 ```
 
-You can modify this to your needs and it will generate a different shell script for every experiment you want to run stored in their own folders under `scripts/<dataset>/run_<model>_<dataset>.sh`
+This generates shell scripts in `scripts/<dataset>/run_<model>_<dataset>.sh` for each experiment configuration.
 
-
-You can use the following command to run an experiment:
+Run a generated script:
 ```bash
-cd <path/to/this/repo>
-sh scripts/<path/to/your/experiment>.sh
+cd <path/to/repo>
+sh scripts/<path/to/experiment>.sh
 ```
 
-## Hyperparameter Tuning
+### Hyperparameter Tuning
 
-There is also a script included that can optimize hyperparameters with [Ray Tune](https://docs.ray.io/en/latest/tune/index.html) similar to the hydra setup above but with additional parameters for hparam tuning.
+For hyperparameter optimization with Ray Tune:
 
-The python file `generate_bash_scripts_ray_tune.py` can generate bash scripts that execute the `src/hparam_ray_hdra.py` script with optimizing the learning rate and batch size. The additonal ray relevant parameters are `cfg.ray.{something}` inside that script. Some defaults are provided, but if you need more specific control over ray tune configuration, additional ray arguments can be passed to the command line or a script with the plus sign. For more information you can see how the `generate_bash_scripts_ray_tune.py` configures an experiment.
+```bash
+python scripts/generate_bash_scripts_ray_tune.py
+```
 
----
+This generates scripts that use `src/hparam_ray_hydra.py` to optimize learning rate and batch size. Additional Ray Tune parameters can be configured via `cfg.ray.{parameter_name}` in the command line.
+
+## Adding New Models
+
+To add a new foundation model:
+
+1. **Create Model Wrapper**: Create a new file in `src/foundation_models/` (e.g., `new_model_wrapper.py`)
+
+2. **Implement Base Class**: Inherit from `LightningTask` and implement required methods:
+   - `forward()`: Model forward pass
+   - `loss()`: Loss computation
+   - `log_metrics()`: Metrics logging
+   - `params_to_optimize()`: Parameters for optimization
+
+3. **Register Model**: 
+   - Import the model in `src/foundation_models/__init__.py`
+   - Add to `model_registry` in `src/factory.py`
+
+4. **Create Configuration**: Add a YAML config file in `src/configs/model/` following the naming convention `{model_name}_{task}_{strategy}.yaml`
+
+## Adding New Datasets
+
+To add a new dataset:
+
+1. **Create Dataset Wrapper**: Create a new file in `src/datasets/` (e.g., `new_dataset_wrapper.py`)
+
+2. **Implement Dataset Class**: Inherit from base dataset class and implement:
+   - `create_dataset()`: Returns train, validation, and test datasets
+   - Dataset-specific data loading logic
+
+3. **Register Dataset**: Add to `dataset_registry` in `src/factory.py`
+
+4. **Create Configuration**: Add a YAML config file in `src/configs/dataset/` with dataset-specific parameters
+
+## Testing
+
+Run unit tests to verify the installation and check for runtime errors:
+
+```bash
+pip install pytest
+pytest tests/
+```
+
+Run tests for a specific model:
+```bash
+pytest tests/test_{model_name}.py
+```
+
+## Code Optimizations
+
+The codebase has been optimized for:
+
+- **Config Immutability**: Configuration objects are copied before modification to preserve original settings
+- **Efficient Logging**: Replaced print statements with proper logging infrastructure
+- **Error Handling**: Added checks for missing checkpoints and edge cases
+- **Code Organization**: Removed work-in-progress files and improved code structure
+- **Resource Management**: Proper handling of multi-GPU training and memory optimization
+
+## Training Tips
+
+### Multi-GPU Training
+
+For distributed training with multiple GPUs:
+```bash
+python src/main.py \
+    num_gpus=4 \
+    strategy=ddp \
+    ...
+```
+
+The learning rate is automatically scaled by the number of GPUs.
+
+### LoRA Fine-tuning
+
+To use LoRA for efficient fine-tuning:
+```bash
+python src/main.py \
+    model=dofa_cls_lora \
+    ...
+```
+
+LoRA configuration can be customized in the model config file.
+
+### Resuming Training
+
+Resume from a checkpoint:
+```bash
+python src/main.py \
+    resume=<path/to/checkpoint.ckpt> \
+    ...
+```
+
+## Output Structure
+
+Experiments create the following directory structure:
+
+```
+output_dir/
+├── checkpoints/
+│   ├── best_model-epoch={epoch}.ckpt
+│   └── last.ckpt
+├── mlruns/
+│   └── [MLFlow experiment tracking data]
+└── [other experiment artifacts]
+```
+
+## Dependencies
+
+Core dependencies include:
+- PyTorch 2.1.2
+- PyTorch Lightning
+- Hydra (OmegaConf)
+- Ray Tune (for hyperparameter optimization)
+- MLFlow (for experiment tracking)
+- Hugging Face Hub (for model weights)
+- PEFT (for LoRA support)
+- Various geospatial libraries (torchgeo, geobench)
+
+See `pyproject.toml` and `requirements/required.txt` for complete dependency lists.
 
 ## Contributing
 
-We welcome contributions! If you'd like to add new models, datasets, or evaluation scripts, please submit a pull request, and ensure that you have tested your changes.
+Contributions are welcome! When contributing:
+
+1. Ensure all tests pass: `pytest tests/`
+2. Follow the existing code style
+3. Add tests for new features
+4. Update documentation as needed
+5. Submit pull requests with clear descriptions
+
+## License
+
+See LICENSE file for details.
+
+## Notes
+
+- The framework automatically handles model weight downloads from Hugging Face
+- Some models may require specific CUDA versions or additional dependencies
+- For large-scale experiments, consider using distributed training with multiple GPUs
+- Hyperparameter tuning with Ray Tune requires additional computational resources
+- The configuration system is flexible and allows for extensive customization
+
+## Troubleshooting
+
+### Common Issues
+
+1. **CUDA Out of Memory**: Reduce batch size or use gradient accumulation
+2. **Model Weights Not Found**: Check `MODEL_WEIGHTS_DIR` environment variable
+3. **Dataset Not Found**: Verify dataset paths in configuration files
+4. **Import Errors**: Ensure all dependencies are installed and the package is installed in editable mode
+
+### Getting Help
+
+For issues and questions:
+- Check existing issues in the repository
+- Review configuration files for examples
+- Consult model-specific documentation in respective subdirectories
