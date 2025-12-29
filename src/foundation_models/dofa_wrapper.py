@@ -87,8 +87,9 @@ class DofaClassification(LightningTask):
         """
         Apply LoRA to the last few layers of the encoder using PEFT.
         """
-
-        print("LORA: Applying PEFT: ", lora_cfg)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"LORA: Applying PEFT: {lora_cfg}")
 
         # Configure LoRA
         peft_config = LoraConfig(
@@ -262,7 +263,9 @@ class DofaSegmentation(LightningTask):
 
 # Model factory for different dinov2 tasks
 def DofaModel(args, model_config, data_config):
-    print("AARGS: ", args)
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Creating DOFA model with args: {args}")
     if args.task == "classification":
         return DofaClassification(args, model_config, data_config)
     elif args.task == "regression":
